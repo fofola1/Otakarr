@@ -1,0 +1,16 @@
+services:
+  otakarr:
+    container_name: otakarr
+    image: ghcr.io/fofola1/otakarr:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      - PORT=${PORT:-8000}
+      - DOWNLOADER_URL=${DOWNLOADER_URL:-http://riparr:8080/api/sabnzbd}
+      - API_KEY=${API_KEY}
+    env_file:
+      - .env

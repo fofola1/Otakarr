@@ -1,0 +1,17 @@
+services:
+  otakarr-dev:
+    container_name: otakarr-dev
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    environment:
+      - PORT=${PORT:-8000}
+      - DOWNLOADER_URL=${DOWNLOADER_URL:-http://riparr:8080/api/sabnzbd}
+      - API_KEY=${API_KEY}
+      - DOTNET_USE_POLLING_FILE_WATCHER=1
+    env_file:
+      - .env
+    command: dotnet watch run --project /app/Otakarr.csproj --urls http://0.0.0.0:${PORT:-8000}
