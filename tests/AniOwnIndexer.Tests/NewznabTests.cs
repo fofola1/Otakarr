@@ -5,7 +5,7 @@ using Otakarr.Models;
 
 namespace Otakarr.Tests;
 
-public class TorznabTests
+public class NewznabTests
 {
     [Fact]
     public void TestEncodeDecodePayload()
@@ -24,8 +24,8 @@ public class TorznabTests
         var downloaderBaseUrl = "http://aniown-downloader:8080/download";
 
         // Act
-        var urlWithPayload = Torznab.EncodePayload(originalPayload, downloaderBaseUrl);
-        var decodedPayload = Torznab.DecodePayload(urlWithPayload);
+        var urlWithPayload = Newznab.EncodePayload(originalPayload, downloaderBaseUrl);
+        var decodedPayload = Newznab.DecodePayload(urlWithPayload);
 
         // Assert
         Assert.StartsWith(downloaderBaseUrl, urlWithPayload);
@@ -44,7 +44,7 @@ public class TorznabTests
     public void TestCapabilitiesXml()
     {
         // Act
-        var xmlString = Torznab.GetCapabilitiesXml();
+        var xmlString = Newznab.GetCapabilitiesXml();
         var doc = XDocument.Parse(xmlString);
 
         // Assert
@@ -66,6 +66,15 @@ public class TorznabTests
             .FirstOrDefault(s => s.Attribute("id")?.Value == "5070");
         Assert.NotNull(animeSubcat);
         Assert.Equal("TV/Anime", animeSubcat.Attribute("name")?.Value);
+
+        var movieCategory = categories.Elements("category")
+            .FirstOrDefault(c => c.Attribute("id")?.Value == "2000");
+        Assert.NotNull(movieCategory);
+
+        var movieAnimeSubcat = movieCategory.Elements("subcat")
+            .FirstOrDefault(s => s.Attribute("id")?.Value == "2070");
+        Assert.NotNull(movieAnimeSubcat);
+        Assert.Equal("Movies/Anime", movieAnimeSubcat.Attribute("name")?.Value);
     }
 
     [Fact]
@@ -92,7 +101,7 @@ public class TorznabTests
         var hostUrl = "http://localhost:8000";
 
         // Act
-        var xmlString = Torznab.GetSearchRssXml(results, downloaderBaseUrl, hostUrl);
+        var xmlString = Newznab.GetSearchRssXml(results, downloaderBaseUrl, hostUrl);
         var doc = XDocument.Parse(xmlString);
 
         // Assert
@@ -112,20 +121,25 @@ public class TorznabTests
         var enclosureUrl = enclosure.Attribute("url")?.Value;
         Assert.NotNull(enclosureUrl);
         Assert.StartsWith(downloaderBaseUrl, enclosureUrl);
+        Assert.Equal("application/x-nzb", enclosure.Attribute("type")?.Value);
 
-        var decoded = Torznab.DecodePayload(enclosureUrl);
+        var decoded = Newznab.DecodePayload(enclosureUrl);
         Assert.Equal("mock_scraper", decoded.Site);
         Assert.Equal("mock_scraper-frieren-s1-e5-1080p", decoded.Id);
         Assert.Equal(1, decoded.Season);
         Assert.Equal(5, decoded.Episode);
 
-        XNamespace torznabNs = "http://torznab.com/schemas/2015/feed";
-        var attrs = item.Elements(torznabNs + "attr").ToList();
+        XNamespace newznabNs = "http://www.newznab.com/DTD/2010/feeds/attributes/";
+        var attrs = item.Elements(newznabNs + "attr").ToList();
         Assert.NotEmpty(attrs);
         
         var catAttr = attrs.FirstOrDefault(a => a.Attribute("name")?.Value == "category");
         Assert.NotNull(catAttr);
         Assert.Equal("5070", catAttr.Attribute("value")?.Value);
+
+        var sizeAttr = attrs.FirstOrDefault(a => a.Attribute("name")?.Value == "size");
+        Assert.NotNull(sizeAttr);
+        Assert.Equal("1073741824", sizeAttr.Attribute("value")?.Value);
 
         var seasonAttr = attrs.FirstOrDefault(a => a.Attribute("name")?.Value == "season");
         Assert.NotNull(seasonAttr);
@@ -134,5 +148,23 @@ public class TorznabTests
         var epAttr = attrs.FirstOrDefault(a => a.Attribute("name")?.Value == "episode");
         Assert.NotNull(epAttr);
         Assert.Equal("5", epAttr.Attribute("value")?.Value);
+
+        // Ensure torrent-specific fields are NOT in the XML
+        var seedersAttr = attrs.FirstOrDefault(a => a.Attribute("name")?.Value == "seeders");
+        Assert.Null(seedersAttr);
+    }
+
+    [Fact]
+    public void TestErrorXml()
+    {
+        // Act
+        var xmlString = Newznab.GetErrorXml(100, "Incorrect user credentials");
+        var doc = XDocument.Parse(xmlString);
+
+        // Assert
+        Assert.NotNull(doc.Root);
+        Assert.Equal("error", doc.Root.Name.LocalName);
+        Assert.Equal("100", doc.Root.Attribute("code")?.Value);
+        Assert.Equal("Incorrect user credentials", doc.Root.Attribute("description")?.Value);
     }
 }

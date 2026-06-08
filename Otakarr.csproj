@@ -15,4 +15,8 @@
     <None Remove="tests\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="wwwroot\**" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+
 </Project>

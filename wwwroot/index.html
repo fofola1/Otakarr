@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Otakarr | Stateless Newznab Indexer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="stars"></div>
+    <div class="glow-orb glow-orb-1"></div>
+    <div class="glow-orb glow-orb-2"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo-area">
+                <i data-lucide="compass" class="logo-icon"></i>
+                <div class="brand">
+                    <h1>Otakarr</h1>
+                    <p>Stateless Newznab Indexer for *Arr Stack</p>
+                </div>
+            </div>
+            <div class="status-badge">
+                <span class="pulse-dot"></span>
+                <span id="service-status">Connecting...</span>
+            </div>
+        </header>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            
+            <!-- Left Side: System Status & Integration Setup -->
+            <div class="sidebar">
+                
+                <!-- Status Overview Card -->
+                <div class="card glass-card">
+                    <div class="card-header">
+                        <i data-lucide="activity" class="text-purple"></i>
+                        <h2>System Status</h2>
+                    </div>
+                    <div class="card-content">
+                        <div class="status-item">
+                            <span class="label">Downloader URL:</span>
+                            <span id="downloader-url" class="value truncate">Loading...</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">API Authentication:</span>
+                            <span id="api-key-status" class="badge">Loading...</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">Active Scrapers:</span>
+                            <span id="scrapers-list" class="value">Loading...</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="label">Running Port:</span>
+                            <span id="running-port" class="value">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Integration Setup Guide Card -->
+                <div class="card glass-card">
+                    <div class="card-header">
+                        <i data-lucide="settings" class="text-pink"></i>
+                        <h2>*Arr Setup Guide</h2>
+                    </div>
+                    <div class="card-content">
+                        <p class="guide-intro">Add Otakarr as a custom <strong>Newznab</strong> indexer in Sonarr or Radarr:</p>
+                        
+                        <div class="form-group copy-group">
+                            <label for="setup-url">Indexer URL</label>
+                            <div class="input-copy-wrapper">
+                                <input type="text" id="setup-url" readonly value="">
+                                <button class="btn btn-icon copy-btn" data-target="setup-url" title="Copy URL">
+                                    <i data-lucide="copy"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-group copy-group">
+                            <label for="setup-apikey">API Key</label>
+                            <div class="input-copy-wrapper">
+                                <input type="text" id="setup-apikey" readonly value="None (Disabled)">
+                                <button class="btn btn-icon copy-btn" id="copy-apikey-btn" data-target="setup-apikey" title="Copy API Key" disabled>
+                                    <i data-lucide="copy"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Recommended Categories</label>
+                            <div class="category-tags">
+                                <span class="tag">5000 (TV)</span>
+                                <span class="tag">5040 (TV/HD)</span>
+                                <span class="tag">5070 (TV/Anime)</span>
+                                <span class="tag">2000 (Movies)</span>
+                                <span class="tag">2070 (Movies/Anime)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Side: Interactive Search & Payload Decoder -->
+            <div class="main-content">
+                
+                <!-- Search Panel Card -->
+                <div class="card glass-card">
+                    <div class="card-header">
+                        <i data-lucide="search" class="text-cyan"></i>
+                        <h2>Interactive Query Tester</h2>
+                    </div>
+                    <div class="card-content">
+                        <form id="search-form" class="search-form-layout">
+                            <div class="form-row">
+                                <div class="form-group flex-3">
+                                    <label for="query-input">Query String</label>
+                                    <input type="text" id="query-input" placeholder="e.g. Frieren, One Piece...">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="season-input">Season</label>
+                                    <input type="number" id="season-input" min="1" placeholder="1">
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label for="episode-input">Episode</label>
+                                    <input type="number" id="episode-input" min="1" placeholder="5">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-glowing">
+                                <span class="btn-text">Search Scrapers</span>
+                                <span class="spinner hidden"></span>
+                            </button>
+                        </form>
+
+                        <!-- Search Results Section -->
+                        <div id="search-results-section" class="hidden">
+                            <div class="divider"></div>
+                            <h3>Search Results (<span id="results-count">0</span>)</h3>
+                            <div class="results-table-container">
+                                <table class="results-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Title</th>
+                                            <th>Resolution</th>
+                                            <th>Size</th>
+                                            <th>Source</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="results-tbody">
+                                        <!-- Dynamic Results -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payload Decoder Tool Card -->
+                <div class="card glass-card">
+                    <div class="card-header">
+                        <i data-lucide="binary" class="text-purple"></i>
+                        <h2>Stateless Payload Decoder</h2>
+                    </div>
+                    <div class="card-content">
+                        <p class="guide-intro">Paste a generated Otakarr download URL or raw Base64 payload here to decode and inspect the execution instructions.</p>
+                        <div class="decoder-layout">
+                            <div class="form-group">
+                                <textarea id="payload-input" placeholder="Paste URL (e.g. http://riparr:8080/api/sabnzbd?payload=...) or raw Base64 string..."></textarea>
+                            </div>
+                            <div class="decoder-actions">
+                                <button id="decode-btn" class="btn btn-secondary">
+                                    <i data-lucide="cpu"></i> Decode Payload
+                                </button>
+                                <button id="clear-decoder-btn" class="btn btn-text-only">Clear</button>
+                            </div>
+                            <div id="decoder-error" class="error-msg hidden"></div>
+                            <div id="decoder-output-wrapper" class="hidden">
+                                <div class="decoder-header">
+                                    <span>Decoded Metadata JSON</span>
+                                    <button class="btn btn-icon copy-btn" data-target="decoder-output" title="Copy JSON">
+                                        <i data-lucide="copy"></i>
+                                    </button>
+                                </div>
+                                <pre id="decoder-output"></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Otakarr project. Stateless, lightweight, Docker-ready Newznab Indexer wrapper.</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

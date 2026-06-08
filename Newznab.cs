@@ -3,9 +3,9 @@ using Otakarr.Models;
 
 namespace Otakarr;
 
-public static class Torznab
+public static class Newznab
 {
-    private static readonly XNamespace TorznabNs = "http://torznab.com/schemas/2015/feed";
+    private static readonly XNamespace NewznabNs = "http://www.newznab.com/DTD/2010/feeds/attributes/";
 
     public static string GetCapabilitiesXml()
     {
@@ -36,7 +36,8 @@ public static class Torznab
                 new XElement("categories",
                     new XElement("category", new XAttribute("id", "2000"), new XAttribute("name", "Movies"),
                         new XElement("subcat", new XAttribute("id", "2030"), new XAttribute("name", "Movies/SD")),
-                        new XElement("subcat", new XAttribute("id", "2040"), new XAttribute("name", "Movies/HD"))
+                        new XElement("subcat", new XAttribute("id", "2040"), new XAttribute("name", "Movies/HD")),
+                        new XElement("subcat", new XAttribute("id", "2070"), new XAttribute("name", "Movies/Anime"))
                     ),
                     new XElement("category", new XAttribute("id", "5000"), new XAttribute("name", "TV"),
                         new XElement("subcat", new XAttribute("id", "5030"), new XAttribute("name", "TV/SD")),
@@ -53,7 +54,7 @@ public static class Torznab
     {
         var channel = new XElement("channel",
             new XElement("title", "Otakarr"),
-            new XElement("description", "Otakarr Stateless Torznab Indexer"),
+            new XElement("description", "Otakarr Stateless Newznab Indexer"),
             new XElement("link", hostUrl)
         );
 
@@ -81,21 +82,19 @@ public static class Torznab
                 new XElement("enclosure", 
                     new XAttribute("url", downloadUrl), 
                     new XAttribute("length", res.Size), 
-                    new XAttribute("type", "application/x-bittorrent")),
+                    new XAttribute("type", "application/x-nzb")),
                 
-                new XElement(TorznabNs + "attr", new XAttribute("name", "category"), new XAttribute("value", res.Category)),
-                new XElement(TorznabNs + "attr", new XAttribute("name", "downloadvolumefactor"), new XAttribute("value", "0")),
-                new XElement(TorznabNs + "attr", new XAttribute("name", "seeders"), new XAttribute("value", res.Seeders)),
-                new XElement(TorznabNs + "attr", new XAttribute("name", "peers"), new XAttribute("value", res.Peers))
+                new XElement(NewznabNs + "attr", new XAttribute("name", "category"), new XAttribute("value", res.Category)),
+                new XElement(NewznabNs + "attr", new XAttribute("name", "size"), new XAttribute("value", res.Size))
             );
 
             if (res.Season.HasValue)
             {
-                item.Add(new XElement(TorznabNs + "attr", new XAttribute("name", "season"), new XAttribute("value", res.Season.Value)));
+                item.Add(new XElement(NewznabNs + "attr", new XAttribute("name", "season"), new XAttribute("value", res.Season.Value)));
             }
             if (res.Episode.HasValue)
             {
-                item.Add(new XElement(TorznabNs + "attr", new XAttribute("name", "episode"), new XAttribute("value", res.Episode.Value)));
+                item.Add(new XElement(NewznabNs + "attr", new XAttribute("name", "episode"), new XAttribute("value", res.Episode.Value)));
             }
 
             channel.Add(item);
@@ -105,7 +104,7 @@ public static class Torznab
             new XDeclaration("1.0", "utf-8", null),
             new XElement("rss",
                 new XAttribute("version", "2.0"),
-                new XAttribute(XNamespace.Xmlns + "torznab", TorznabNs.NamespaceName),
+                new XAttribute(XNamespace.Xmlns + "newznab", NewznabNs.NamespaceName),
                 channel
             )
         );
@@ -142,5 +141,17 @@ public static class Torznab
         var bytes = Convert.FromBase64String(base64);
         var json = System.Text.Encoding.UTF8.GetString(bytes);
         return System.Text.Json.JsonSerializer.Deserialize<DownloaderPayload>(json)!;
+    }
+
+    public static string GetErrorXml(int code, string description)
+    {
+        var doc = new XDocument(
+            new XDeclaration("1.0", "utf-8", null),
+            new XElement("error",
+                new XAttribute("code", code),
+                new XAttribute("description", description)
+            )
+        );
+        return doc.ToString();
     }
 }
