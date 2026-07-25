@@ -24,7 +24,7 @@ builder.Services.AddSingleton<ScraperManager>();
 var app = builder.Build();
 
 // Configuration values
-var downloaderUrl = Environment.GetEnvironmentVariable("DOWNLOADER_URL") ?? "http://localhost:8080/download";
+var downloaderUrl = Environment.GetEnvironmentVariable("DOWNLOADER_URL") ?? "http://localhost:8080/api/sabnzbd";
 var configuredApiKey = Environment.GetEnvironmentVariable("API_KEY");
 
 // Enable static and default files serving (e.g., serves index.html from wwwroot)
