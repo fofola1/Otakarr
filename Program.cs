@@ -167,6 +167,7 @@ async Task<IResult> HandleNewznabRequestAsync(
 
 async Task<string?> ResolveShowTitleAsync(HttpClient httpClient, string? tvdbId, string? imdbId, string? tvmazeId)
 {
+    string? title = null;
     try
     {
         string? url = null;
@@ -183,24 +184,77 @@ async Task<string?> ResolveShowTitleAsync(HttpClient httpClient, string? tvdbId,
             url = $"https://api.tvmaze.com/shows/{tvmazeId}";
         }
 
-        if (string.IsNullOrEmpty(url)) return null;
+        if (!string.IsNullOrEmpty(url))
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("User-Agent", "Otakarr/1.0");
 
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
+            var response = await httpClient.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                if (doc.RootElement.TryGetProperty("name", out var nameProp))
+                {
+                    title = nameProp.GetString();
+                }
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Torznab] TVmaze ID resolution lookup failed: {ex.Message}");
+    }
+
+    // Fallback to AniList GraphQL if TVmaze lookup returned null or failed
+    if (string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(tvdbId))
+    {
+        title = await ResolveAniListTitleAsync(httpClient, tvdbId);
+    }
+
+    return title;
+}
+
+async Task<string?> ResolveAniListTitleAsync(HttpClient httpClient, string query)
+{
+    try
+    {
+        var graphqlQuery = new
+        {
+            query = "query ($search: String) { Media (search: $search, type: ANIME) { title { english romaji } } }",
+            variables = new { search = query }
+        };
+
+        var json = JsonSerializer.Serialize(graphqlQuery);
+        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://graphql.anilist.co")
+        {
+            Content = content
+        };
         request.Headers.Add("User-Agent", "Otakarr/1.0");
 
         var response = await httpClient.SendAsync(request);
         if (response.IsSuccessStatusCode)
         {
             using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-            if (doc.RootElement.TryGetProperty("name", out var nameProp))
+            if (doc.RootElement.TryGetProperty("data", out var dataEl) &&
+                dataEl.TryGetProperty("Media", out var mediaEl) &&
+                mediaEl.ValueKind == JsonValueKind.Object &&
+                mediaEl.TryGetProperty("title", out var titleEl))
             {
-                return nameProp.GetString();
+                if (titleEl.TryGetProperty("english", out var engProp) && !string.IsNullOrEmpty(engProp.GetString()))
+                {
+                    return engProp.GetString();
+                }
+                if (titleEl.TryGetProperty("romaji", out var romProp) && !string.IsNullOrEmpty(romProp.GetString()))
+                {
+                    return romProp.GetString();
+                }
             }
         }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[Torznab] ID resolution lookup failed: {ex.Message}");
+        Console.WriteLine($"[AniList] Lookup failed: {ex.Message}");
     }
     return null;
 }

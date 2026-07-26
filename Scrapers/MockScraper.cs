@@ -10,9 +10,7 @@ public class MockScraper : IScraper
     {
         var results = new List<SearchResult>();
         
-        // Default to Frieren if query is null/empty
-        bool isFrieren = string.IsNullOrEmpty(query) || query.Contains("frieren", StringComparison.OrdinalIgnoreCase);
-        string baseTitle = isFrieren ? "Frieren: Beyond Journey's End" : query!;
+        string baseTitle = !string.IsNullOrWhiteSpace(query) ? query : "Frieren: Beyond Journey's End";
 
         int startEp = episode ?? 1;
         int endEp = episode ?? 5; // Return up to 5 episodes if none specified
