@@ -104,6 +104,9 @@ async Task<IResult> HandleNewznabRequestAsync(
     {
         string? searchQuery = q;
 
+        // Log incoming request for debugging
+        Console.WriteLine($"[Newznab] Incoming request: t={t}, q={q}, tvdbid={tvdbid}, imdbid={imdbid}, season={season}, ep={ep}, cat={cat}, offset={offset}, limit={limit}");
+
         // Resolve show title if Sonarr/Radarr sent external IDs (TVDB / IMDB / TVmaze) without a text query
         if (string.IsNullOrEmpty(searchQuery) && (!string.IsNullOrEmpty(tvdbid) || !string.IsNullOrEmpty(imdbid) || !string.IsNullOrEmpty(tvmazeid)))
         {
@@ -114,6 +117,7 @@ async Task<IResult> HandleNewznabRequestAsync(
 
         // Search streaming targets
         var searchResults = await scraperManager.SearchAllAsync(searchQuery, season, ep);
+        Console.WriteLine($"[Newznab] Scraper returned {searchResults.Count} results for query='{searchQuery}', season={season}, ep={ep}");
 
         // Filter by requested category if present
         if (!string.IsNullOrEmpty(cat))
@@ -150,13 +154,16 @@ async Task<IResult> HandleNewznabRequestAsync(
         // Apply Pagination (offset/limit)
         var startOffset = offset ?? 0;
         var fetchLimit = limit ?? 100;
+        var totalCount = searchResults.Count;
         var paginatedResults = searchResults.Skip(startOffset).Take(fetchLimit);
 
         // Get the indexer base host URL
         var hostUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}{httpContext.Request.PathBase}";
         
+        Console.WriteLine($"[Newznab] Returning {Math.Min(fetchLimit, totalCount - startOffset)} of {totalCount} total results (offset={startOffset})");
+
         // Generate Newznab search RSS response
-        var rssXml = Newznab.GetSearchRssXml(paginatedResults, downloaderUrl, hostUrl);
+        var rssXml = Newznab.GetSearchRssXml(paginatedResults, downloaderUrl, hostUrl, startOffset, totalCount);
         return Results.Content(rssXml, "application/xml", System.Text.Encoding.UTF8);
     }
 
@@ -205,13 +212,50 @@ async Task<string?> ResolveShowTitleAsync(HttpClient httpClient, string? tvdbId,
         Console.WriteLine($"[Torznab] TVmaze ID resolution lookup failed: {ex.Message}");
     }
 
-    // Fallback to AniList GraphQL if TVmaze lookup returned null or failed
+    // Fallback to TheXEM and AniList if TVmaze lookup returned null or failed
     if (string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(tvdbId))
     {
-        title = await ResolveAniListTitleAsync(httpClient, tvdbId);
+        title = await ResolveXemTitleAsync(httpClient, tvdbId);
+        if (string.IsNullOrEmpty(title))
+        {
+            title = await ResolveAniListTitleAsync(httpClient, tvdbId);
+        }
     }
 
     return title;
+}
+
+async Task<string?> ResolveXemTitleAsync(HttpClient httpClient, string tvdbId)
+{
+    try
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "https://thexem.info/map/allNames?origin=tvdb");
+        request.Headers.Add("User-Agent", "Otakarr/1.0");
+
+        var response = await httpClient.SendAsync(request);
+        if (response.IsSuccessStatusCode)
+        {
+            using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+            if (doc.RootElement.TryGetProperty("data", out var dataProp) &&
+                dataProp.TryGetProperty(tvdbId, out var titlesProp) &&
+                titlesProp.ValueKind == JsonValueKind.Array &&
+                titlesProp.GetArrayLength() > 0)
+            {
+                return titlesProp[0].GetString();
+            }
+            if (doc.RootElement.TryGetProperty(tvdbId, out var directTitlesProp) &&
+                directTitlesProp.ValueKind == JsonValueKind.Array &&
+                directTitlesProp.GetArrayLength() > 0)
+            {
+                return directTitlesProp[0].GetString();
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[TheXEM] Lookup failed: {ex.Message}");
+    }
+    return null;
 }
 
 async Task<string?> ResolveAniListTitleAsync(HttpClient httpClient, string query)

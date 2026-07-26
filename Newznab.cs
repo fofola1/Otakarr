@@ -51,15 +51,21 @@ public static class Newznab
         return doc.ToString();
     }
 
-    public static string GetSearchRssXml(IEnumerable<SearchResult> results, string downloaderBaseUrl, string hostUrl)
+    public static string GetSearchRssXml(IEnumerable<SearchResult> results, string downloaderBaseUrl, string hostUrl, int offset = 0, int totalResults = -1)
     {
+        var resultsList = results.ToList();
+        var total = totalResults >= 0 ? totalResults : resultsList.Count;
+
         var channel = new XElement("channel",
             new XElement("title", "Otakarr"),
             new XElement("description", "Otakarr Stateless Newznab Indexer"),
-            new XElement("link", hostUrl)
+            new XElement("link", hostUrl),
+            new XElement(NewznabNs + "response",
+                new XAttribute("offset", offset),
+                new XAttribute("total", total))
         );
 
-        foreach (var res in results)
+        foreach (var res in resultsList)
         {
             var payload = new DownloaderPayload(
                 Site: res.ScraperName,
