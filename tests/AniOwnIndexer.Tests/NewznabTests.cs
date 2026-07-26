@@ -66,7 +66,7 @@ public class NewznabTests
             .FirstOrDefault(c => c.Attribute("id")?.Value == "5000");
         Assert.NotNull(tvCategory);
         
-        var animeSubcat = tvCategory.Elements("subcat")
+        var animeSubcat = tvCategory.Elements("category")
             .FirstOrDefault(s => s.Attribute("id")?.Value == "5070");
         Assert.NotNull(animeSubcat);
         Assert.Equal("TV/Anime", animeSubcat.Attribute("name")?.Value);
@@ -75,7 +75,7 @@ public class NewznabTests
             .FirstOrDefault(c => c.Attribute("id")?.Value == "2000");
         Assert.NotNull(movieCategory);
 
-        var movieAnimeSubcat = movieCategory.Elements("subcat")
+        var movieAnimeSubcat = movieCategory.Elements("category")
             .FirstOrDefault(s => s.Attribute("id")?.Value == "2070");
         Assert.NotNull(movieAnimeSubcat);
         Assert.Equal("Movies/Anime", movieAnimeSubcat.Attribute("name")?.Value);

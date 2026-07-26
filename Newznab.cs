@@ -36,14 +36,14 @@ public static class Newznab
                 ),
                 new XElement("categories",
                     new XElement("category", new XAttribute("id", "2000"), new XAttribute("name", "Movies"),
-                        new XElement("subcat", new XAttribute("id", "2030"), new XAttribute("name", "Movies/SD")),
-                        new XElement("subcat", new XAttribute("id", "2040"), new XAttribute("name", "Movies/HD")),
-                        new XElement("subcat", new XAttribute("id", "2070"), new XAttribute("name", "Movies/Anime"))
+                        new XElement("category", new XAttribute("id", "2030"), new XAttribute("name", "Movies/SD")),
+                        new XElement("category", new XAttribute("id", "2040"), new XAttribute("name", "Movies/HD")),
+                        new XElement("category", new XAttribute("id", "2070"), new XAttribute("name", "Movies/Anime"))
                     ),
                     new XElement("category", new XAttribute("id", "5000"), new XAttribute("name", "TV"),
-                        new XElement("subcat", new XAttribute("id", "5030"), new XAttribute("name", "TV/SD")),
-                        new XElement("subcat", new XAttribute("id", "5040"), new XAttribute("name", "TV/HD")),
-                        new XElement("subcat", new XAttribute("id", "5070"), new XAttribute("name", "TV/Anime"))
+                        new XElement("category", new XAttribute("id", "5030"), new XAttribute("name", "TV/SD")),
+                        new XElement("category", new XAttribute("id", "5040"), new XAttribute("name", "TV/HD")),
+                        new XElement("category", new XAttribute("id", "5070"), new XAttribute("name", "TV/Anime"))
                     )
                 )
             )
