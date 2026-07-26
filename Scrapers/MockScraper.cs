@@ -40,13 +40,14 @@ public class MockScraper : IScraper
 
         for (int e = startEp; e <= endEp; e++)
         {
-            var epTitle = $"{baseTitle} - S{targetSeason:D2}E{e:D2}";
+            var epSeasonStr = $"S{targetSeason:D2}E{e:D2}";
+            var absEpStr = $"{e:D2}";
 
-            // Add a 1080p Anime release
+            // 1. Standard + Absolute Anime 1080p release (e.g., [MockSub] Title - S01E01 - 01 [1080p])
             results.Add(new SearchResult(
-                Title: $"[MockSub] {epTitle} [1080p]",
+                Title: $"[MockSub] {baseTitle} - {epSeasonStr} - {absEpStr} [1080p]",
                 Url: $"https://example-streaming.com/watch/{cleanSlug}-s{targetSeason}-e{e}-1080p",
-                Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-1080p",
+                Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-abs-1080p",
                 PublishDate: DateTimeOffset.UtcNow.AddDays(-(endEp - e)),
                 Size: 1073741824L + (e * 50000000L), // ~1GB+
                 Category: 5070, // TV/Anime
@@ -57,11 +58,26 @@ public class MockScraper : IScraper
                 ScraperName: Name
             ));
 
-            // Add a 1080p TV/HD release
+            // 2. Absolute Episode only 1080p release (e.g., [MockSub] Title - 01 [1080p])
             results.Add(new SearchResult(
-                Title: $"[MockSub] {epTitle} [1080p] (HD)",
-                Url: $"https://example-streaming.com/watch/{cleanSlug}-s{targetSeason}-e{e}-1080p-hd",
-                Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-1080p-hd",
+                Title: $"[MockSub] {baseTitle} - {absEpStr} [1080p]",
+                Url: $"https://example-streaming.com/watch/{cleanSlug}-ep{e}-1080p",
+                Guid: $"{Name}-{cleanSlug}-ep{e}-1080p",
+                PublishDate: DateTimeOffset.UtcNow.AddDays(-(endEp - e)),
+                Size: 1073741824L + (e * 50000000L), // ~1GB+
+                Category: 5070, // TV/Anime
+                Season: targetSeason,
+                Episode: e,
+                Resolution: "1080p",
+                Source: "MockSub",
+                ScraperName: Name
+            ));
+
+            // 3. Standard Season/Episode 1080p release (e.g., [MockSub] Title - S01E01 [1080p])
+            results.Add(new SearchResult(
+                Title: $"[MockSub] {baseTitle} - {epSeasonStr} [1080p]",
+                Url: $"https://example-streaming.com/watch/{cleanSlug}-s{targetSeason}-e{e}-1080p-std",
+                Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-std-1080p",
                 PublishDate: DateTimeOffset.UtcNow.AddDays(-(endEp - e)),
                 Size: 1073741824L + (e * 50000000L), // ~1GB+
                 Category: 5040, // TV/HD
@@ -72,9 +88,9 @@ public class MockScraper : IScraper
                 ScraperName: Name
             ));
 
-            // Add a 720p TV/SD release
+            // 4. 720p TV/SD release
             results.Add(new SearchResult(
-                Title: $"[MockSub] {epTitle} [720p]",
+                Title: $"[MockSub] {baseTitle} - {epSeasonStr} [720p]",
                 Url: $"https://example-streaming.com/watch/{cleanSlug}-s{targetSeason}-e{e}-720p",
                 Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-720p",
                 PublishDate: DateTimeOffset.UtcNow.AddDays(-(endEp - e)),
