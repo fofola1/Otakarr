@@ -1,7 +1,11 @@
 using Xunit;
 using System.Xml.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
 using Otakarr;
 using Otakarr.Models;
+using Otakarr.Scrapers;
+using Otakarr.Services;
 
 namespace Otakarr.Tests;
 
@@ -84,17 +88,17 @@ public class NewznabTests
         var results = new List<SearchResult>
         {
             new SearchResult(
-                Title: "[MockSub] Frieren - S01E05 [1080p]",
+                Title: "[AniCli] Frieren - S01E05 [1080p]",
                 Url: "https://example.com/frieren-5",
-                Guid: "mock_scraper-frieren-s1-e5-1080p",
+                Guid: "ani-cli-frieren-s1-e5-1080p",
                 PublishDate: DateTimeOffset.UtcNow,
                 Size: 1073741824,
                 Category: 5070,
                 Season: 1,
                 Episode: 5,
                 Resolution: "1080p",
-                Source: "MockSub",
-                ScraperName: "mock_scraper"
+                Source: "AniCli",
+                ScraperName: "ani-cli"
             )
         };
         var downloaderBaseUrl = "http://aniown-downloader:8080/download";
@@ -113,8 +117,8 @@ public class NewznabTests
 
         var item = channel.Element("item");
         Assert.NotNull(item);
-        Assert.Equal("[MockSub] Frieren - S01E05 [1080p]", item.Element("title")?.Value);
-        Assert.Equal("mock_scraper-frieren-s1-e5-1080p", item.Element("guid")?.Value);
+        Assert.Equal("[AniCli] Frieren - S01E05 [1080p]", item.Element("title")?.Value);
+        Assert.Equal("ani-cli-frieren-s1-e5-1080p", item.Element("guid")?.Value);
 
         var enclosure = item.Element("enclosure");
         Assert.NotNull(enclosure);
@@ -124,8 +128,8 @@ public class NewznabTests
         Assert.Equal("application/x-nzb", enclosure.Attribute("type")?.Value);
 
         var decoded = Newznab.DecodePayload(enclosureUrl);
-        Assert.Equal("mock_scraper", decoded.Site);
-        Assert.Equal("mock_scraper-frieren-s1-e5-1080p", decoded.Id);
+        Assert.Equal("ani-cli", decoded.Site);
+        Assert.Equal("ani-cli-frieren-s1-e5-1080p", decoded.Id);
         Assert.Equal(1, decoded.Season);
         Assert.Equal(5, decoded.Episode);
 
@@ -166,5 +170,45 @@ public class NewznabTests
         Assert.Equal("error", doc.Root.Name.LocalName);
         Assert.Equal("100", doc.Root.Attribute("code")?.Value);
         Assert.Equal("Incorrect user credentials", doc.Root.Attribute("description")?.Value);
+    }
+
+    [Fact]
+    public async Task TestAniListScraperSearch()
+    {
+        using var client = new HttpClient();
+        var scraper = new AniListScraper(client);
+
+        var results = await scraper.SearchAsync("Witch Hat Atelier", 1, 1);
+
+        Assert.NotEmpty(results);
+        Assert.Contains(results, r => r.Title.Contains("Witch Hat Atelier", System.StringComparison.OrdinalIgnoreCase) ||
+                                     r.Title.Contains("Tongari Boushi no Atelier", System.StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task TestAniListScraperRssFeed()
+    {
+        using var client = new HttpClient();
+        var scraper = new AniListScraper(client);
+
+        // Empty query triggers RSS feed mode
+        var results = await scraper.SearchAsync("", null, null);
+
+        Assert.NotEmpty(results);
+        Assert.All(results, r => Assert.Equal(5070, r.Category));
+    }
+
+    [Fact]
+    public async Task TestAnimeIdResolverTvdbMapping()
+    {
+        using var client = new HttpClient();
+        var resolver = new AnimeIdResolver(client);
+
+        // Frieren TVDB ID is 424536 in Fribb map
+        var title = await resolver.ResolveTvdbIdAsync("424536");
+
+        Assert.NotNull(title);
+        Assert.True(title.Contains("Frieren", System.StringComparison.OrdinalIgnoreCase) ||
+                    title.Contains("Sousou", System.StringComparison.OrdinalIgnoreCase));
     }
 }
