@@ -6,6 +6,7 @@ namespace Otakarr;
 public static class Newznab
 {
     private static readonly XNamespace NewznabNs = "http://www.newznab.com/DTD/2010/feeds/attributes/";
+    private static readonly XNamespace TorznabNs = "http://torznab.com/schemas/2015/feed";
 
     public static string GetCapabilitiesXml()
     {
@@ -79,22 +80,28 @@ public static class Newznab
                 new XElement("link", downloadUrl),
                 new XElement("pubDate", res.PublishDate.ToString("ddd, dd MMM yyyy HH:mm:ss zzz", System.Globalization.CultureInfo.InvariantCulture)),
                 new XElement("size", res.Size),
+                new XElement("category", res.Category),
                 new XElement("enclosure", 
                     new XAttribute("url", downloadUrl), 
                     new XAttribute("length", res.Size), 
                     new XAttribute("type", "application/x-nzb")),
                 
                 new XElement(NewznabNs + "attr", new XAttribute("name", "category"), new XAttribute("value", res.Category)),
-                new XElement(NewznabNs + "attr", new XAttribute("name", "size"), new XAttribute("value", res.Size))
+                new XElement(NewznabNs + "attr", new XAttribute("name", "size"), new XAttribute("value", res.Size)),
+
+                new XElement(TorznabNs + "attr", new XAttribute("name", "category"), new XAttribute("value", res.Category)),
+                new XElement(TorznabNs + "attr", new XAttribute("name", "size"), new XAttribute("value", res.Size))
             );
 
             if (res.Season.HasValue)
             {
                 item.Add(new XElement(NewznabNs + "attr", new XAttribute("name", "season"), new XAttribute("value", res.Season.Value)));
+                item.Add(new XElement(TorznabNs + "attr", new XAttribute("name", "season"), new XAttribute("value", res.Season.Value)));
             }
             if (res.Episode.HasValue)
             {
                 item.Add(new XElement(NewznabNs + "attr", new XAttribute("name", "episode"), new XAttribute("value", res.Episode.Value)));
+                item.Add(new XElement(TorznabNs + "attr", new XAttribute("name", "episode"), new XAttribute("value", res.Episode.Value)));
             }
 
             channel.Add(item);
@@ -105,6 +112,7 @@ public static class Newznab
             new XElement("rss",
                 new XAttribute("version", "2.0"),
                 new XAttribute(XNamespace.Xmlns + "newznab", NewznabNs.NamespaceName),
+                new XAttribute(XNamespace.Xmlns + "torznab", TorznabNs.NamespaceName),
                 channel
             )
         );
