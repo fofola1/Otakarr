@@ -29,21 +29,21 @@ public static class Newznab
                         new XAttribute("supportedParams", "q")),
                     new XElement("tv-search", 
                         new XAttribute("available", "yes"), 
-                        new XAttribute("supportedParams", "q,season,ep,tvdbid,imdbid")),
+                        new XAttribute("supportedParams", "q,season,ep")),
                     new XElement("movie-search", 
                         new XAttribute("available", "yes"), 
                         new XAttribute("supportedParams", "q,imdbid,tmdbid"))
                 ),
                 new XElement("categories",
                     new XElement("category", new XAttribute("id", "2000"), new XAttribute("name", "Movies"),
-                        new XElement("subcat", new XAttribute("id", "2030"), new XAttribute("name", "Movies/SD")),
-                        new XElement("subcat", new XAttribute("id", "2040"), new XAttribute("name", "Movies/HD")),
-                        new XElement("subcat", new XAttribute("id", "2070"), new XAttribute("name", "Movies/Anime"))
+                        new XElement("category", new XAttribute("id", "2030"), new XAttribute("name", "Movies/SD")),
+                        new XElement("category", new XAttribute("id", "2040"), new XAttribute("name", "Movies/HD")),
+                        new XElement("category", new XAttribute("id", "2070"), new XAttribute("name", "Movies/Anime"))
                     ),
                     new XElement("category", new XAttribute("id", "5000"), new XAttribute("name", "TV"),
-                        new XElement("subcat", new XAttribute("id", "5030"), new XAttribute("name", "TV/SD")),
-                        new XElement("subcat", new XAttribute("id", "5040"), new XAttribute("name", "TV/HD")),
-                        new XElement("subcat", new XAttribute("id", "5070"), new XAttribute("name", "TV/Anime"))
+                        new XElement("category", new XAttribute("id", "5030"), new XAttribute("name", "TV/SD")),
+                        new XElement("category", new XAttribute("id", "5040"), new XAttribute("name", "TV/HD")),
+                        new XElement("category", new XAttribute("id", "5070"), new XAttribute("name", "TV/Anime"))
                     )
                 )
             )
@@ -51,15 +51,21 @@ public static class Newznab
         return doc.ToString();
     }
 
-    public static string GetSearchRssXml(IEnumerable<SearchResult> results, string downloaderBaseUrl, string hostUrl)
+    public static string GetSearchRssXml(IEnumerable<SearchResult> results, string downloaderBaseUrl, string hostUrl, int offset = 0, int totalResults = -1)
     {
+        var resultsList = results.ToList();
+        var total = totalResults >= 0 ? totalResults : resultsList.Count;
+
         var channel = new XElement("channel",
             new XElement("title", "Otakarr"),
             new XElement("description", "Otakarr Stateless Newznab Indexer"),
-            new XElement("link", hostUrl)
+            new XElement("link", hostUrl),
+            new XElement(NewznabNs + "response",
+                new XAttribute("offset", offset),
+                new XAttribute("total", total))
         );
 
-        foreach (var res in results)
+        foreach (var res in resultsList)
         {
             var payload = new DownloaderPayload(
                 Site: res.ScraperName,

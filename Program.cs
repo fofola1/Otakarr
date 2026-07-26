@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Net.Http;
 using Otakarr;
 using Otakarr.Scrapers;
+using Otakarr.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,7 +19,8 @@ if (int.TryParse(portStr, out var port))
 
 // Add services
 builder.Services.AddHttpClient();
-builder.Services.AddSingleton<IScraper, MockScraper>();
+builder.Services.AddSingleton<AnimeIdResolver>();
+builder.Services.AddSingleton<IScraper, AniListScraper>();
 builder.Services.AddSingleton<ScraperManager>();
 
 var app = builder.Build();
@@ -74,11 +76,15 @@ async Task<IResult> HandleNewznabRequestAsync(
     [FromQuery] string? apikey,
     HttpContext httpContext,
     IHttpClientFactory httpClientFactory,
+    AnimeIdResolver animeIdResolver,
     ScraperManager scraperManager)
 {
+    Console.WriteLine($"[Otakarr Log] [{DateTime.UtcNow:HH:mm:ss}] Incoming HTTP Request: {httpContext.Request.Method} {httpContext.Request.Path}{httpContext.Request.QueryString}");
+
     // 1. Authenticate Request
     if (!string.IsNullOrEmpty(configuredApiKey) && !string.Equals(configuredApiKey, apikey, StringComparison.Ordinal))
     {
+        Console.WriteLine($"[Otakarr Log] Authentication failed. Expected key configured, received apikey='{apikey}'");
         var errorXml = Newznab.GetErrorXml(100, "Incorrect user credentials");
         return Results.Text(errorXml, "application/xml", System.Text.Encoding.UTF8, 401);
     }
@@ -86,6 +92,7 @@ async Task<IResult> HandleNewznabRequestAsync(
     // 2. Missing Command Param
     if (string.IsNullOrEmpty(t))
     {
+        Console.WriteLine($"[Otakarr Log] Missing required 't' parameter.");
         var errorXml = Newznab.GetErrorXml(200, "Missing parameter: 't'");
         return Results.Text(errorXml, "application/xml", System.Text.Encoding.UTF8, 400);
     }
@@ -93,6 +100,7 @@ async Task<IResult> HandleNewznabRequestAsync(
     // 3. Capabilities Check
     if (string.Equals(t, "caps", StringComparison.OrdinalIgnoreCase))
     {
+        Console.WriteLine($"[Otakarr Log] Serving capabilities XML response to client.");
         var capsXml = Newznab.GetCapabilitiesXml();
         return Results.Content(capsXml, "application/xml", System.Text.Encoding.UTF8);
     }
@@ -104,16 +112,24 @@ async Task<IResult> HandleNewznabRequestAsync(
     {
         string? searchQuery = q;
 
+        Console.WriteLine($"[Otakarr Log] Processing search: t={t}, q='{q}', tvdbid='{tvdbid}', imdbid='{imdbid}', season={season}, ep={ep}, cat='{cat}'");
+
         // Resolve show title if Sonarr/Radarr sent external IDs (TVDB / IMDB / TVmaze) without a text query
         if (string.IsNullOrEmpty(searchQuery) && (!string.IsNullOrEmpty(tvdbid) || !string.IsNullOrEmpty(imdbid) || !string.IsNullOrEmpty(tvmazeid)))
         {
             var httpClient = httpClientFactory.CreateClient();
-            searchQuery = await ResolveShowTitleAsync(httpClient, tvdbid, imdbid, tvmazeid);
-            Console.WriteLine($"[Newznab] Resolved external ID (tvdb={tvdbid}, imdb={imdbid}, tvmaze={tvmazeid}) to title: '{searchQuery}'");
+            searchQuery = await ResolveShowTitleAsync(httpClient, animeIdResolver, tvdbid, imdbid, tvmazeid);
+            Console.WriteLine($"[Otakarr Log] External ID resolution (tvdb={tvdbid}, imdb={imdbid}, tvmaze={tvmazeid}) -> Resolved Title: '{searchQuery}'");
         }
 
         // Search streaming targets
         var searchResults = await scraperManager.SearchAllAsync(searchQuery, season, ep);
+        Console.WriteLine($"[Otakarr Log] Scrapers found {searchResults.Count} release items for query='{searchQuery}'");
+
+        if (searchResults.Count > 0)
+        {
+            Console.WriteLine($"[Otakarr Log] Sample Release Titles: " + string.Join(" | ", searchResults.Take(3).Select(r => r.Title)));
+        }
 
         // Filter by requested category if present
         if (!string.IsNullOrEmpty(cat))
@@ -143,118 +159,126 @@ async Task<IResult> HandleNewznabRequestAsync(
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Newznab] Failed to parse category filters '{cat}': {ex.Message}");
+                Console.WriteLine($"[Otakarr Log] Failed to parse category filters '{cat}': {ex.Message}");
             }
         }
 
         // Apply Pagination (offset/limit)
         var startOffset = offset ?? 0;
         var fetchLimit = limit ?? 100;
+        var totalCount = searchResults.Count;
         var paginatedResults = searchResults.Skip(startOffset).Take(fetchLimit);
 
         // Get the indexer base host URL
         var hostUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}{httpContext.Request.PathBase}";
         
+        Console.WriteLine($"[Otakarr Log] Returning {paginatedResults.Count()} of {totalCount} total results (offset={startOffset}) to Sonarr.");
+
         // Generate Newznab search RSS response
-        var rssXml = Newznab.GetSearchRssXml(paginatedResults, downloaderUrl, hostUrl);
+        var rssXml = Newznab.GetSearchRssXml(paginatedResults, downloaderUrl, hostUrl, startOffset, totalCount);
         return Results.Content(rssXml, "application/xml", System.Text.Encoding.UTF8);
     }
 
     // Unknown/unsupported function command
+    Console.WriteLine($"[Otakarr Log] Unknown/unsupported function 't={t}' requested.");
     var unknownFuncXml = Newznab.GetErrorXml(201, $"Unknown function: '{t}'");
     return Results.Text(unknownFuncXml, "application/xml", System.Text.Encoding.UTF8, 400);
 }
 
-async Task<string?> ResolveShowTitleAsync(HttpClient httpClient, string? tvdbId, string? imdbId, string? tvmazeId)
+async Task<string?> ResolveShowTitleAsync(
+    HttpClient httpClient, 
+    AnimeIdResolver animeIdResolver, 
+    string? tvdbId, 
+    string? imdbId, 
+    string? tvmazeId)
 {
     string? title = null;
-    try
+
+    // 1. Try TVDB ID resolution via Fribb mapping & AniList
+    if (!string.IsNullOrEmpty(tvdbId))
     {
-        string? url = null;
-        if (!string.IsNullOrEmpty(tvdbId))
-        {
-            url = $"https://api.tvmaze.com/lookup/shows?thetvdb={tvdbId}";
-        }
-        else if (!string.IsNullOrEmpty(imdbId))
-        {
-            url = $"https://api.tvmaze.com/lookup/shows?imdb={imdbId}";
-        }
-        else if (!string.IsNullOrEmpty(tvmazeId))
-        {
-            url = $"https://api.tvmaze.com/shows/{tvmazeId}";
-        }
+        title = await animeIdResolver.ResolveTvdbIdAsync(tvdbId);
+    }
 
-        if (!string.IsNullOrEmpty(url))
+    // 2. Try TVmaze lookup (for TVDB, IMDb, TVmaze ID)
+    if (string.IsNullOrEmpty(title))
+    {
+        try
         {
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent", "Otakarr/1.0");
-
-            var response = await httpClient.SendAsync(request);
-            if (response.IsSuccessStatusCode)
+            string? url = null;
+            if (!string.IsNullOrEmpty(tvdbId))
             {
-                using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-                if (doc.RootElement.TryGetProperty("name", out var nameProp))
+                url = $"https://api.tvmaze.com/lookup/shows?thetvdb={tvdbId}";
+            }
+            else if (!string.IsNullOrEmpty(imdbId))
+            {
+                url = $"https://api.tvmaze.com/lookup/shows?imdb={imdbId}";
+            }
+            else if (!string.IsNullOrEmpty(tvmazeId))
+            {
+                url = $"https://api.tvmaze.com/shows/{tvmazeId}";
+            }
+
+            if (!string.IsNullOrEmpty(url))
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Add("User-Agent", "Otakarr/1.0");
+
+                var response = await httpClient.SendAsync(request);
+                if (response.IsSuccessStatusCode)
                 {
-                    title = nameProp.GetString();
+                    using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                    if (doc.RootElement.TryGetProperty("name", out var nameProp))
+                    {
+                        title = nameProp.GetString();
+                    }
                 }
             }
         }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"[Torznab] TVmaze ID resolution lookup failed: {ex.Message}");
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Otakarr Log] TVmaze ID resolution lookup failed: {ex.Message}");
+        }
     }
 
-    // Fallback to AniList GraphQL if TVmaze lookup returned null or failed
+    // 3. Fallback to TheXEM
     if (string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(tvdbId))
     {
-        title = await ResolveAniListTitleAsync(httpClient, tvdbId);
+        title = await ResolveXemTitleAsync(httpClient, tvdbId);
     }
 
     return title;
 }
 
-async Task<string?> ResolveAniListTitleAsync(HttpClient httpClient, string query)
+async Task<string?> ResolveXemTitleAsync(HttpClient httpClient, string tvdbId)
 {
     try
     {
-        var graphqlQuery = new
-        {
-            query = "query ($search: String) { Media (search: $search, type: ANIME) { title { english romaji } } }",
-            variables = new { search = query }
-        };
-
-        var json = JsonSerializer.Serialize(graphqlQuery);
-        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-        var request = new HttpRequestMessage(HttpMethod.Post, "https://graphql.anilist.co")
-        {
-            Content = content
-        };
+        var request = new HttpRequestMessage(HttpMethod.Get, "https://thexem.info/map/allNames?origin=tvdb");
         request.Headers.Add("User-Agent", "Otakarr/1.0");
 
         var response = await httpClient.SendAsync(request);
         if (response.IsSuccessStatusCode)
         {
             using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-            if (doc.RootElement.TryGetProperty("data", out var dataEl) &&
-                dataEl.TryGetProperty("Media", out var mediaEl) &&
-                mediaEl.ValueKind == JsonValueKind.Object &&
-                mediaEl.TryGetProperty("title", out var titleEl))
+            if (doc.RootElement.TryGetProperty("data", out var dataProp) &&
+                dataProp.TryGetProperty(tvdbId, out var titlesProp) &&
+                titlesProp.ValueKind == JsonValueKind.Array &&
+                titlesProp.GetArrayLength() > 0)
             {
-                if (titleEl.TryGetProperty("english", out var engProp) && !string.IsNullOrEmpty(engProp.GetString()))
-                {
-                    return engProp.GetString();
-                }
-                if (titleEl.TryGetProperty("romaji", out var romProp) && !string.IsNullOrEmpty(romProp.GetString()))
-                {
-                    return romProp.GetString();
-                }
+                return titlesProp[0].GetString();
+            }
+            if (doc.RootElement.TryGetProperty(tvdbId, out var directTitlesProp) &&
+                directTitlesProp.ValueKind == JsonValueKind.Array &&
+                directTitlesProp.GetArrayLength() > 0)
+            {
+                return directTitlesProp[0].GetString();
             }
         }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[AniList] Lookup failed: {ex.Message}");
+        Console.WriteLine($"[Otakarr Log] TheXEM lookup failed: {ex.Message}");
     }
     return null;
 }
