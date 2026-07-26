@@ -79,9 +79,12 @@ async Task<IResult> HandleNewznabRequestAsync(
     AnimeIdResolver animeIdResolver,
     ScraperManager scraperManager)
 {
+    Console.WriteLine($"[Otakarr Log] [{DateTime.UtcNow:HH:mm:ss}] Incoming HTTP Request: {httpContext.Request.Method} {httpContext.Request.Path}{httpContext.Request.QueryString}");
+
     // 1. Authenticate Request
     if (!string.IsNullOrEmpty(configuredApiKey) && !string.Equals(configuredApiKey, apikey, StringComparison.Ordinal))
     {
+        Console.WriteLine($"[Otakarr Log] Authentication failed. Expected key configured, received apikey='{apikey}'");
         var errorXml = Newznab.GetErrorXml(100, "Incorrect user credentials");
         return Results.Text(errorXml, "application/xml", System.Text.Encoding.UTF8, 401);
     }
@@ -89,6 +92,7 @@ async Task<IResult> HandleNewznabRequestAsync(
     // 2. Missing Command Param
     if (string.IsNullOrEmpty(t))
     {
+        Console.WriteLine($"[Otakarr Log] Missing required 't' parameter.");
         var errorXml = Newznab.GetErrorXml(200, "Missing parameter: 't'");
         return Results.Text(errorXml, "application/xml", System.Text.Encoding.UTF8, 400);
     }
@@ -96,6 +100,7 @@ async Task<IResult> HandleNewznabRequestAsync(
     // 3. Capabilities Check
     if (string.Equals(t, "caps", StringComparison.OrdinalIgnoreCase))
     {
+        Console.WriteLine($"[Otakarr Log] Serving capabilities XML response to client.");
         var capsXml = Newznab.GetCapabilitiesXml();
         return Results.Content(capsXml, "application/xml", System.Text.Encoding.UTF8);
     }
@@ -107,20 +112,24 @@ async Task<IResult> HandleNewznabRequestAsync(
     {
         string? searchQuery = q;
 
-        // Log incoming request for debugging
-        Console.WriteLine($"[Newznab] Incoming request: t={t}, q={q}, tvdbid={tvdbid}, imdbid={imdbid}, season={season}, ep={ep}, cat={cat}, offset={offset}, limit={limit}");
+        Console.WriteLine($"[Otakarr Log] Processing search: t={t}, q='{q}', tvdbid='{tvdbid}', imdbid='{imdbid}', season={season}, ep={ep}, cat='{cat}'");
 
         // Resolve show title if Sonarr/Radarr sent external IDs (TVDB / IMDB / TVmaze) without a text query
         if (string.IsNullOrEmpty(searchQuery) && (!string.IsNullOrEmpty(tvdbid) || !string.IsNullOrEmpty(imdbid) || !string.IsNullOrEmpty(tvmazeid)))
         {
             var httpClient = httpClientFactory.CreateClient();
             searchQuery = await ResolveShowTitleAsync(httpClient, animeIdResolver, tvdbid, imdbid, tvmazeid);
-            Console.WriteLine($"[Newznab] Resolved external ID (tvdb={tvdbid}, imdb={imdbid}, tvmaze={tvmazeid}) to title: '{searchQuery}'");
+            Console.WriteLine($"[Otakarr Log] External ID resolution (tvdb={tvdbid}, imdb={imdbid}, tvmaze={tvmazeid}) -> Resolved Title: '{searchQuery}'");
         }
 
         // Search streaming targets
         var searchResults = await scraperManager.SearchAllAsync(searchQuery, season, ep);
-        Console.WriteLine($"[Newznab] Scraper returned {searchResults.Count} results for query='{searchQuery}', season={season}, ep={ep}");
+        Console.WriteLine($"[Otakarr Log] Scrapers found {searchResults.Count} release items for query='{searchQuery}'");
+
+        if (searchResults.Count > 0)
+        {
+            Console.WriteLine($"[Otakarr Log] Sample Release Titles: " + string.Join(" | ", searchResults.Take(3).Select(r => r.Title)));
+        }
 
         // Filter by requested category if present
         if (!string.IsNullOrEmpty(cat))
@@ -150,7 +159,7 @@ async Task<IResult> HandleNewznabRequestAsync(
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Newznab] Failed to parse category filters '{cat}': {ex.Message}");
+                Console.WriteLine($"[Otakarr Log] Failed to parse category filters '{cat}': {ex.Message}");
             }
         }
 
@@ -163,7 +172,7 @@ async Task<IResult> HandleNewznabRequestAsync(
         // Get the indexer base host URL
         var hostUrl = $"{httpContext.Request.Scheme}://{httpContext.Request.Host}{httpContext.Request.PathBase}";
         
-        Console.WriteLine($"[Newznab] Returning {Math.Min(fetchLimit, totalCount - startOffset)} of {totalCount} total results (offset={startOffset})");
+        Console.WriteLine($"[Otakarr Log] Returning {paginatedResults.Count()} of {totalCount} total results (offset={startOffset}) to Sonarr.");
 
         // Generate Newznab search RSS response
         var rssXml = Newznab.GetSearchRssXml(paginatedResults, downloaderUrl, hostUrl, startOffset, totalCount);
@@ -171,6 +180,7 @@ async Task<IResult> HandleNewznabRequestAsync(
     }
 
     // Unknown/unsupported function command
+    Console.WriteLine($"[Otakarr Log] Unknown/unsupported function 't={t}' requested.");
     var unknownFuncXml = Newznab.GetErrorXml(201, $"Unknown function: '{t}'");
     return Results.Text(unknownFuncXml, "application/xml", System.Text.Encoding.UTF8, 400);
 }
@@ -227,7 +237,7 @@ async Task<string?> ResolveShowTitleAsync(
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Torznab] TVmaze ID resolution lookup failed: {ex.Message}");
+            Console.WriteLine($"[Otakarr Log] TVmaze ID resolution lookup failed: {ex.Message}");
         }
     }
 
@@ -268,7 +278,7 @@ async Task<string?> ResolveXemTitleAsync(HttpClient httpClient, string tvdbId)
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[TheXEM] Lookup failed: {ex.Message}");
+        Console.WriteLine($"[Otakarr Log] TheXEM lookup failed: {ex.Message}");
     }
     return null;
 }

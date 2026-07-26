@@ -29,7 +29,7 @@ public static class Newznab
                         new XAttribute("supportedParams", "q")),
                     new XElement("tv-search", 
                         new XAttribute("available", "yes"), 
-                        new XAttribute("supportedParams", "q,season,ep,tvdbid,imdbid")),
+                        new XAttribute("supportedParams", "q,season,ep")),
                     new XElement("movie-search", 
                         new XAttribute("available", "yes"), 
                         new XAttribute("supportedParams", "q,imdbid,tmdbid"))
