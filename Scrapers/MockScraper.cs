@@ -16,6 +16,19 @@ public class MockScraper : IScraper
         // Actual searches will always have a query (either from q= param or resolved from tvdbid).
         if (string.IsNullOrWhiteSpace(query))
         {
+            results.Add(new SearchResult(
+                Title: "[OtakarrTest] Indexer Test Release - S01E01 [1080p]",
+                Url: "https://example-streaming.com/watch/otakarr-test-s1-e1-1080p",
+                Guid: "otakarr-test-s1-e1-1080p",
+                PublishDate: DateTimeOffset.UtcNow,
+                Size: 1073741824L,
+                Category: 5070, // TV/Anime
+                Season: 1,
+                Episode: 1,
+                Resolution: "1080p",
+                Source: "OtakarrTest",
+                ScraperName: Name
+            ));
             return Task.FromResult(results);
         }
 
