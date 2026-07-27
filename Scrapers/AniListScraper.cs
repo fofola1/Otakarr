@@ -35,6 +35,23 @@ public class AniListScraper : IScraper
         var results = new List<SearchResult>();
         int targetSeason = season ?? 1;
 
+        string searchQuery = query;
+        int? targetEpisode = episode;
+
+        // If episode parameter was not explicitly passed, check if query ends with an episode number (e.g. "Witch Hat Atelier 06")
+        if (!targetEpisode.HasValue)
+        {
+            var match = Regex.Match(query, @"^(.*?)\s+(\d{1,3})$");
+            if (match.Success)
+            {
+                searchQuery = match.Groups[1].Value.Trim();
+                if (int.TryParse(match.Groups[2].Value, out var parsedEp))
+                {
+                    targetEpisode = parsedEp;
+                }
+            }
+        }
+
         try
         {
             var graphqlQuery = new
@@ -50,7 +67,7 @@ public class AniListScraper : IScraper
                         }
                     }
                 }",
-                variables = new { search = query }
+                variables = new { search = searchQuery }
             };
 
             var json = JsonSerializer.Serialize(graphqlQuery);
@@ -94,15 +111,15 @@ public class AniListScraper : IScraper
                             totalEpisodes = Math.Max(1, nextEpNumProp.GetInt32() - 1);
                         }
 
-                        int startEp = episode ?? 1;
-                        int endEp = episode ?? (totalEpisodes > 0 ? Math.Min(totalEpisodes, 100) : 12);
+                        int startEp = targetEpisode ?? 1;
+                        int endEp = targetEpisode ?? (totalEpisodes > 0 ? Math.Min(totalEpisodes, 100) : 12);
 
                         var titlesToUse = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                         if (!string.IsNullOrWhiteSpace(englishTitle)) titlesToUse.Add(englishTitle);
                         if (!string.IsNullOrWhiteSpace(romajiTitle)) titlesToUse.Add(romajiTitle);
 
-                        // If neither English nor Romaji was returned, fallback to query
-                        if (titlesToUse.Count == 0) titlesToUse.Add(query);
+                        // If neither English nor Romaji was returned, fallback to searchQuery
+                        if (titlesToUse.Count == 0) titlesToUse.Add(searchQuery);
 
                         foreach (var animeTitle in titlesToUse)
                         {
@@ -156,12 +173,12 @@ public class AniListScraper : IScraper
             Console.WriteLine($"[AniListScraper] Search failed for query '{query}': {ex.Message}");
         }
 
-        // Fallback: If AniList search returned no results, generate results directly using the query string
-        if (results.Count == 0 && !string.IsNullOrWhiteSpace(query))
+        // Fallback: If AniList search returned no results, generate results directly using searchQuery
+        if (results.Count == 0 && !string.IsNullOrWhiteSpace(searchQuery))
         {
-            int startEp = episode ?? 1;
-            int endEp = episode ?? 12;
-            string cleanSlug = CleanSlug(query);
+            int startEp = targetEpisode ?? 1;
+            int endEp = targetEpisode ?? 12;
+            string cleanSlug = CleanSlug(searchQuery);
 
             for (int e = startEp; e <= endEp; e++)
             {
@@ -169,7 +186,7 @@ public class AniListScraper : IScraper
                 var absEpStr = $"{e:D2}";
 
                 results.Add(new SearchResult(
-                    Title: $"[AniCli] {query} - {epSeasonStr} - {absEpStr} [1080p]",
+                    Title: $"[AniCli] {searchQuery} - {epSeasonStr} - {absEpStr} [1080p]",
                     Url: $"ani-cli:stream/{cleanSlug}-s{targetSeason}-e{e}-1080p",
                     Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-abs-1080p",
                     PublishDate: DateTimeOffset.UtcNow.AddDays(-(endEp - e)),
@@ -183,7 +200,7 @@ public class AniListScraper : IScraper
                 ));
 
                 results.Add(new SearchResult(
-                    Title: $"[AniCli] {query} - {epSeasonStr} [1080p]",
+                    Title: $"[AniCli] {searchQuery} - {epSeasonStr} [1080p]",
                     Url: $"ani-cli:stream/{cleanSlug}-s{targetSeason}-e{e}-1080p-std",
                     Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-std-1080p",
                     PublishDate: DateTimeOffset.UtcNow.AddDays(-(endEp - e)),
