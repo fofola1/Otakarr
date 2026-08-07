@@ -11,13 +11,13 @@ public class ScraperManager
         _scrapers = scrapers.ToList();
     }
 
-    public async Task<List<SearchResult>> SearchAllAsync(string? query, int? season, int? episode)
+    public async Task<List<SearchResult>> SearchAllAsync(string? query, int? season, int? episode, string? searchType = null)
     {
         var tasks = _scrapers.Select(async scraper =>
         {
             try
             {
-                return await scraper.SearchAsync(query, season, episode);
+                return await scraper.SearchAsync(query, season, episode, searchType);
             }
             catch (Exception ex)
             {

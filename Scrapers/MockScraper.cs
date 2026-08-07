@@ -6,7 +6,7 @@ public class MockScraper : IScraper
 {
     public string Name => "mock_scraper";
 
-    public Task<List<SearchResult>> SearchAsync(string? query, int? season, int? episode)
+    public Task<List<SearchResult>> SearchAsync(string? query, int? season, int? episode, string? searchType = null)
     {
         var results = new List<SearchResult>();
 

@@ -122,8 +122,8 @@ async Task<IResult> HandleNewznabRequestAsync(
             Console.WriteLine($"[Otakarr Log] External ID resolution (tvdb={tvdbid}, imdb={imdbid}, tvmaze={tvmazeid}) -> Resolved Title: '{searchQuery}'");
         }
 
-        // Search streaming targets
-        var searchResults = await scraperManager.SearchAllAsync(searchQuery, season, ep);
+        // Search streaming targets (pass search type so scrapers can assign correct categories)
+        var searchResults = await scraperManager.SearchAllAsync(searchQuery, season, ep, t);
         Console.WriteLine($"[Otakarr Log] Scrapers found {searchResults.Count} release items for query='{searchQuery}'");
 
         if (searchResults.Count > 0)
@@ -142,17 +142,18 @@ async Task<IResult> HandleNewznabRequestAsync(
                 if (requestedCats.Any())
                 {
                     var expandedCats = new HashSet<int>(requestedCats);
-                    if (requestedCats.Contains(5000))
+                    // Bidirectional expansion: if ANY category in the range is requested,
+                    // include ALL subcategories in that range. This ensures that when Sonarr
+                    // sends cat=5030,5040 but our results are tagged 5070, they still match.
+                    bool hasMovieCat = requestedCats.Any(c => c >= 2000 && c < 3000);
+                    bool hasTvCat = requestedCats.Any(c => c >= 5000 && c < 6000);
+                    if (hasMovieCat)
                     {
-                        expandedCats.Add(5030);
-                        expandedCats.Add(5040);
-                        expandedCats.Add(5070);
+                        expandedCats.UnionWith(new[] { 2000, 2010, 2020, 2030, 2040, 2045, 2050, 2060, 2070 });
                     }
-                    if (requestedCats.Contains(2000))
+                    if (hasTvCat)
                     {
-                        expandedCats.Add(2030);
-                        expandedCats.Add(2040);
-                        expandedCats.Add(2070);
+                        expandedCats.UnionWith(new[] { 5000, 5010, 5020, 5030, 5040, 5045, 5050, 5060, 5070, 5080 });
                     }
                     searchResults = searchResults.Where(r => expandedCats.Contains(r.Category)).ToList();
                 }

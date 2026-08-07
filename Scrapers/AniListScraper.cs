@@ -20,17 +20,22 @@ public class AniListScraper : IScraper
 
     public string Name => "ani-cli";
 
-    public async Task<List<SearchResult>> SearchAsync(string? query, int? season, int? episode)
+    public async Task<List<SearchResult>> SearchAsync(string? query, int? season, int? episode, string? searchType = null)
     {
+        // Determine the correct Newznab category based on search type
+        // movie searches from Radarr → 2070 (Movies/Anime)
+        // tvsearch/search from Sonarr → 5070 (TV/Anime)
+        int category = string.Equals(searchType, "movie", StringComparison.OrdinalIgnoreCase) ? 2070 : 5070;
+
         if (string.IsNullOrWhiteSpace(query))
         {
-            return await FetchRssFeedAsync();
+            return await FetchRssFeedAsync(category);
         }
 
-        return await SearchAnimeAsync(query.Trim(), season, episode);
+        return await SearchAnimeAsync(query.Trim(), season, episode, category);
     }
 
-    private async Task<List<SearchResult>> SearchAnimeAsync(string query, int? season, int? episode)
+    private async Task<List<SearchResult>> SearchAnimeAsync(string query, int? season, int? episode, int category)
     {
         var results = new List<SearchResult>();
         int targetSeason = season ?? 1;
@@ -137,7 +142,7 @@ public class AniListScraper : IScraper
                                     Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-abs-1080p",
                                     PublishDate: DateTimeOffset.UtcNow.AddDays(-(endEp - e)),
                                     Size: 1073741824L + (e * 50000000L),
-                                    Category: 5070, // TV/Anime
+                                    Category: category,
                                     Season: targetSeason,
                                     Episode: e,
                                     Resolution: "1080p",
@@ -152,7 +157,7 @@ public class AniListScraper : IScraper
                                     Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-std-1080p",
                                     PublishDate: DateTimeOffset.UtcNow.AddDays(-(endEp - e)),
                                     Size: 1073741824L + (e * 50000000L),
-                                    Category: 5070,
+                                    Category: category,
                                     Season: targetSeason,
                                     Episode: e,
                                     Resolution: "1080p",
@@ -191,7 +196,7 @@ public class AniListScraper : IScraper
                     Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-abs-1080p",
                     PublishDate: DateTimeOffset.UtcNow.AddDays(-(endEp - e)),
                     Size: 1073741824L + (e * 50000000L),
-                    Category: 5070,
+                    Category: category,
                     Season: targetSeason,
                     Episode: e,
                     Resolution: "1080p",
@@ -205,7 +210,7 @@ public class AniListScraper : IScraper
                     Guid: $"{Name}-{cleanSlug}-s{targetSeason}-e{e}-std-1080p",
                     PublishDate: DateTimeOffset.UtcNow.AddDays(-(endEp - e)),
                     Size: 1073741824L + (e * 50000000L),
-                    Category: 5070,
+                    Category: category,
                     Season: targetSeason,
                     Episode: e,
                     Resolution: "1080p",
@@ -218,7 +223,7 @@ public class AniListScraper : IScraper
         return results;
     }
 
-    private async Task<List<SearchResult>> FetchRssFeedAsync()
+    private async Task<List<SearchResult>> FetchRssFeedAsync(int category = 5070)
     {
         var results = new List<SearchResult>();
 
@@ -286,7 +291,7 @@ public class AniListScraper : IScraper
                                     Guid: $"{Name}-{cleanSlug}-s1-e{episodeNum}-abs-1080p",
                                     PublishDate: DateTimeOffset.UtcNow.AddMinutes(-index * 10),
                                     Size: 1073741824L,
-                                    Category: 5070,
+                                    Category: category,
                                     Season: 1,
                                     Episode: episodeNum,
                                     Resolution: "1080p",
